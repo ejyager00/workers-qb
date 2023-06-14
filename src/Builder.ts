@@ -17,6 +17,18 @@ export class QueryBuilder<GenericResult, GenericResultOne> {
     throw new Error('Execute method not implemented')
   }
 
+  async batchExecute(
+    params: [
+      {
+        query: string
+        arguments?: (string | number | boolean | null | Raw)[]
+        fetchType?: FetchTypes
+      }
+    ]
+  ): Promise<any> {
+    throw new Error('Batch execute method not implemented')
+  }
+
   async createTable(params: { tableName: string; schema: string; ifNotExists?: boolean }): Promise<GenericResult> {
     return this.execute({
       query: `CREATE TABLE ${params.ifNotExists ? 'IF NOT EXISTS' : ''} ${params.tableName}

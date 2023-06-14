@@ -43,4 +43,47 @@ export class D1QB extends QueryBuilder<D1Result, D1ResultOne> {
 
     return stmt.run()
   }
+
+  async batchExecute(
+    params: [
+      {
+        query: string
+        arguments?: (string | number | boolean | Raw | null)[] | undefined
+        fetchType?: FetchTypes | undefined
+      }
+    ]
+  ): Promise<any> {
+    if (this._debugger) {
+      console.log({
+        'workers-qb': params,
+      })
+    }
+
+    const resp = await this.db.batch(
+      params.map((param) => {
+        let argument_arr = param.arguments ? param.arguments : []
+        return this.db.prepare(param.query).bind(...argument_arr)
+      })
+    )
+
+    return resp.map(
+      (
+        r: {
+          meta: { changes: any; duration: any; last_row_id: any; served_by: any }
+          success: any
+          results: string | any[]
+        },
+        i: number
+      ) => {
+        return {
+          changes: r.meta?.changes,
+          duration: r.meta?.duration,
+          last_row_id: r.meta?.last_row_id,
+          served_by: r.meta?.served_by,
+          success: r.success,
+          results: params[i].fetchType === FetchTypes.ONE && r.results.length > 0 ? r.results[0] : r.results,
+        }
+      }
+    )
+  }
 }
