@@ -1,6 +1,6 @@
 import { QueryBuilder } from '../Builder'
 import { FetchTypes } from '../enums'
-import { Raw } from '../tools'
+import { Query } from '../tools'
 import { D1Result, D1ResultOne } from '../interfaces'
 
 export class D1QB extends QueryBuilder<D1Result, D1ResultOne> {
@@ -11,24 +11,24 @@ export class D1QB extends QueryBuilder<D1Result, D1ResultOne> {
     this.db = db
   }
 
-  async execute(params: {
-    query: string
-    arguments?: (string | number | boolean | null | Raw)[]
-    fetchType?: FetchTypes
-  }): Promise<any> {
-    let stmt = this.db.prepare(params.query)
+  async execute(query: Query): Promise<D1ResultOne | D1Result> {
+    let stmt = this.db.prepare(query.query)
 
     if (this._debugger) {
       console.log({
-        'workers-qb': params,
+        'workers-qb': {
+          query: query.query,
+          arguments: query.arguments,
+          fetchType: query.fetchType,
+        },
       })
     }
 
-    if (params.arguments) {
-      stmt = stmt.bind(...params.arguments)
+    if (query.arguments) {
+      stmt = stmt.bind(...query.arguments)
     }
 
-    if (params.fetchType === FetchTypes.ONE || params.fetchType === FetchTypes.ALL) {
+    if (query.fetchType === FetchTypes.ONE || query.fetchType === FetchTypes.ALL) {
       const resp = await stmt.all()
 
       return {
@@ -37,51 +37,64 @@ export class D1QB extends QueryBuilder<D1Result, D1ResultOne> {
         last_row_id: resp.meta?.last_row_id,
         served_by: resp.meta?.served_by,
         success: resp.success,
-        results: params.fetchType === FetchTypes.ONE && resp.results.length > 0 ? resp.results[0] : resp.results,
+        results: query.fetchType === FetchTypes.ONE && resp.results.length > 0 ? resp.results[0] : resp.results,
       }
     }
 
     return stmt.run()
   }
 
-  async batchExecute(
-    params: [
-      {
-        query: string
-        arguments?: (string | number | boolean | Raw | null)[] | undefined
-        fetchType?: FetchTypes | undefined
-      }
-    ]
-  ): Promise<any> {
+  async batchExecute(queryArray: Query[]): Promise<(D1ResultOne | D1Result)[]> {
     if (this._debugger) {
       console.log({
-        'workers-qb': params,
+        'workers-qb': queryArray,
       })
     }
 
-    const resp = await this.db.batch(
-      params.map((param) => {
-        let argument_arr = param.arguments ? param.arguments : []
-        return this.db.prepare(param.query).bind(...argument_arr)
-      })
-    )
+    const statements = queryArray.map((query) => {
+      let stmt = this.db.prepare(query.query)
+      if (query.arguments) {
+        stmt = stmt.bind(...query.arguments)
+      }
+      return stmt
+    })
 
-    return resp.map(
+    const responses = await this.db.batch(statements)
+
+    return responses.map(
       (
-        r: {
-          meta: { changes: any; duration: any; last_row_id: any; served_by: any }
-          success: any
-          results: string | any[]
+        resp: {
+          results: any[] | null
+          success: boolean
+          meta: {
+            duration: number
+            changes: any
+            last_row_id: any
+            served_by: any
+          }
         },
         i: number
       ) => {
-        return {
-          changes: r.meta?.changes,
-          duration: r.meta?.duration,
-          last_row_id: r.meta?.last_row_id,
-          served_by: r.meta?.served_by,
-          success: r.success,
-          results: params[i].fetchType === FetchTypes.ONE && r.results.length > 0 ? r.results[0] : r.results,
+        if (queryArray[i]) {
+          return {
+            changes: resp.meta?.changes,
+            duration: resp.meta?.duration,
+            last_row_id: resp.meta?.last_row_id,
+            served_by: resp.meta?.served_by,
+            success: resp.success,
+            results:
+              queryArray[i].fetchType === FetchTypes.ONE && resp.results && resp.results.length > 0
+                ? resp.results[0]
+                : resp.results,
+          }
+        } else {
+          return {
+            changes: resp.meta?.changes,
+            duration: resp.meta?.duration,
+            last_row_id: resp.meta?.last_row_id,
+            served_by: resp.meta?.served_by,
+            success: resp.success,
+          }
         }
       }
     )
