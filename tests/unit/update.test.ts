@@ -1,9 +1,10 @@
-import { QuerybuilderTest } from '../utils'
+import { describe, expect, it } from 'vitest'
 import { ConflictTypes } from '../../src/enums'
 import { Raw } from '../../src/tools'
+import { QuerybuilderTest } from '../utils'
 
 describe('Update Builder', () => {
-  test('update one field with one where and verify arguments', async () => {
+  it('update one field with one where and verify arguments', async () => {
     const result = new QuerybuilderTest().update({
       tableName: 'testTable',
       data: {
@@ -20,7 +21,35 @@ describe('Update Builder', () => {
     expect(result.fetchType).toEqual('ALL')
   })
 
-  test('update with Raw sql values', async () => {
+  it('update one field with simplified where', async () => {
+    const result = new QuerybuilderTest().update({
+      tableName: 'testTable',
+      data: {
+        my_field: 'test_data',
+      },
+      where: 'field = true',
+    })
+
+    expect(result.query).toEqual('UPDATE testTable SET my_field = ?1 WHERE field = true')
+    expect(result.arguments).toEqual(['test_data'])
+    expect(result.fetchType).toEqual('ALL')
+  })
+
+  it('update one field with simplified where list', async () => {
+    const result = new QuerybuilderTest().update({
+      tableName: 'testTable',
+      data: {
+        my_field: 'test_data',
+      },
+      where: ['field = true', 'active = true'],
+    })
+
+    expect(result.query).toEqual('UPDATE testTable SET my_field = ?1 WHERE (field = true) AND (active = true)')
+    expect(result.arguments).toEqual(['test_data'])
+    expect(result.fetchType).toEqual('ALL')
+  })
+
+  it('update with Raw sql values', async () => {
     const result = new QuerybuilderTest().update({
       tableName: 'testTable',
       data: {
@@ -41,7 +70,7 @@ describe('Update Builder', () => {
     expect(result.fetchType).toEqual('ALL')
   })
 
-  test('update one field with one where without returning', async () => {
+  it('update one field with one where without returning', async () => {
     const result = new QuerybuilderTest().update({
       tableName: 'testTable',
       data: {
@@ -58,7 +87,7 @@ describe('Update Builder', () => {
     expect(result.fetchType).toEqual('ALL')
   })
 
-  test('update multiple field with one where without returning', async () => {
+  it('update multiple field with one where without returning', async () => {
     const result = new QuerybuilderTest().update({
       tableName: 'testTable',
       data: {
@@ -76,7 +105,7 @@ describe('Update Builder', () => {
     expect(result.fetchType).toEqual('ALL')
   })
 
-  test('update multiple field with multiple where without returning', async () => {
+  it('update multiple field with multiple where without returning', async () => {
     const result = new QuerybuilderTest().update({
       tableName: 'testTable',
       data: {
@@ -89,12 +118,12 @@ describe('Update Builder', () => {
       },
     })
 
-    expect(result.query).toEqual('UPDATE testTable SET my_field = ?3, another = ?4 WHERE field = ?1 AND id = ?2')
+    expect(result.query).toEqual('UPDATE testTable SET my_field = ?3, another = ?4 WHERE (field = ?1) AND (id = ?2)')
     expect(result.arguments).toEqual(['test', 345, 'test_update', 123])
     expect(result.fetchType).toEqual('ALL')
   })
 
-  test('update multiple field with multiple where with one returning', async () => {
+  it('update multiple field with multiple where with one returning', async () => {
     const result = new QuerybuilderTest().update({
       tableName: 'testTable',
       data: {
@@ -109,13 +138,13 @@ describe('Update Builder', () => {
     })
 
     expect(result.query).toEqual(
-      'UPDATE testTable SET my_field = ?3, another = ?4 WHERE field = ?1 AND id = ?2 RETURNING id'
+      'UPDATE testTable SET my_field = ?3, another = ?4 WHERE (field = ?1) AND (id = ?2) RETURNING id'
     )
     expect(result.arguments).toEqual(['test', 345, 'test_update', 123])
     expect(result.fetchType).toEqual('ALL')
   })
 
-  test('update multiple field with multiple where with multiple returning', async () => {
+  it('update multiple field with multiple where with multiple returning', async () => {
     const result = new QuerybuilderTest().update({
       tableName: 'testTable',
       data: {
@@ -130,13 +159,13 @@ describe('Update Builder', () => {
     })
 
     expect(result.query).toEqual(
-      'UPDATE testTable SET my_field = ?3, another = ?4 WHERE field = ?1 AND id = ?2 RETURNING id, field'
+      'UPDATE testTable SET my_field = ?3, another = ?4 WHERE (field = ?1) AND (id = ?2) RETURNING id, field'
     )
     expect(result.arguments).toEqual(['test', 345, 'test_update', 123])
     expect(result.fetchType).toEqual('ALL')
   })
 
-  test('update on conflict ignore', async () => {
+  it('update on conflict ignore', async () => {
     const result = new QuerybuilderTest().update({
       tableName: 'testTable',
       data: {
@@ -152,13 +181,13 @@ describe('Update Builder', () => {
     })
 
     expect(result.query).toEqual(
-      'UPDATE OR IGNORE testTable SET my_field = ?3, another = ?4 WHERE field = ?1 AND id = ?2 RETURNING id, field'
+      'UPDATE OR IGNORE testTable SET my_field = ?3, another = ?4 WHERE (field = ?1) AND (id = ?2) RETURNING id, field'
     )
     expect(result.arguments).toEqual(['test', 345, 'test_update', 123])
     expect(result.fetchType).toEqual('ALL')
   })
 
-  test('update on conflict replace', async () => {
+  it('update on conflict replace', async () => {
     const result = new QuerybuilderTest().update({
       tableName: 'testTable',
       data: {
@@ -174,7 +203,7 @@ describe('Update Builder', () => {
     })
 
     expect(result.query).toEqual(
-      'UPDATE OR REPLACE testTable SET my_field = ?3, another = ?4 WHERE field = ?1 AND id = ?2 RETURNING id, field'
+      'UPDATE OR REPLACE testTable SET my_field = ?3, another = ?4 WHERE (field = ?1) AND (id = ?2) RETURNING id, field'
     )
     expect(result.arguments).toEqual(['test', 345, 'test_update', 123])
     expect(result.fetchType).toEqual('ALL')

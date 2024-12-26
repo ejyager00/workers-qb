@@ -1,85 +1,154 @@
-import { ConflictTypes, JoinTypes, OrderTypes } from './enums'
+import { ConflictTypes, FetchTypes, JoinTypes, OrderTypes } from './enums'
 import { Raw } from './tools'
+import { Merge } from './typefest'
 
-export interface Where {
-  conditions: string | Array<string>
-  // TODO: enable named parameters Record<string, string | boolean | number | null>
-  params?: (string | boolean | number | null)[]
+export type Primitive = null | string | number | boolean | bigint | Raw
+
+export type QueryLoggerMeta = {
+  duration?: number
 }
 
-export interface Join {
+export type QueryBuilderOptions<IsAsync extends boolean = true> = {
+  logger?: (query: RawQuery, meta: QueryLoggerMeta) => MaybeAsync<IsAsync, void>
+}
+
+export type DefaultObject = Record<string, Primitive>
+export type DefaultReturnObject = Record<string, null | string | number | boolean | bigint>
+
+export type Where =
+  | {
+      conditions: string | Array<string>
+      // TODO: enable named parameters with DefaultObject
+      params?: Primitive | Primitive[]
+    }
+  | string
+  | Array<string>
+
+export type Join = {
   type?: string | JoinTypes
   table: string | SelectAll
   on: string
   alias?: string
 }
 
-export interface SelectOne {
+export type SelectOne = {
   tableName: string
-  fields: string | Array<string>
+  fields?: string | Array<string>
   where?: Where
   join?: Join | Array<Join>
   groupBy?: string | Array<string>
-  having?: string
+  having?: string | Array<string>
   orderBy?: string | Array<string> | Record<string, string | OrderTypes>
   offset?: number
 }
 
-export interface SelectAll extends SelectOne {
+export type RawQuery = {
+  query: string
+  args?: Primitive[]
+  fetchType?: FetchTypes
+}
+
+export type RawQueryFetchOne = Omit<RawQuery, 'fetchType'> & {
+  fetchType: FetchTypes.ONE
+}
+
+export type RawQueryFetchAll = Omit<RawQuery, 'fetchType'> & {
+  fetchType: FetchTypes.ALL
+}
+
+export type RawQueryWithoutFetching = Omit<RawQuery, 'fetchType'>
+
+export type SelectAll = SelectOne & {
   limit?: number
 }
 
-export interface Insert {
+export type ConflictUpsert = {
+  column: string | Array<string>
+  data: DefaultObject
+  where?: Where
+}
+
+export type Insert = {
   tableName: string
-  data:
-    | Record<string, string | boolean | number | null | Raw>
-    | Array<Record<string, string | boolean | number | null | Raw>>
+  data: DefaultObject | Array<DefaultObject>
+  returning?: string | Array<string>
+  onConflict?: string | ConflictTypes | ConflictUpsert
+}
+
+export type InsertOne = Omit<Insert, 'data' | 'returning'> & {
+  data: DefaultObject
+  returning: string | Array<string>
+}
+
+export type InsertMultiple = Omit<Insert, 'data' | 'returning'> & {
+  data: Array<DefaultObject>
+  returning: string | Array<string>
+}
+
+export type InsertWithoutReturning = Omit<Insert, 'returning'>
+
+export type test<I extends Insert = Insert> = I
+
+export type Update = {
+  tableName: string
+  data: DefaultObject
+  where?: Where
   returning?: string | Array<string>
   onConflict?: string | ConflictTypes
 }
 
-export interface Update {
+export type UpdateReturning = Omit<Update, 'returning'> & {
+  returning: string | Array<string>
+}
+export type UpdateWithoutReturning = Omit<Update, 'returning'>
+
+export type Delete = {
   tableName: string
-  data: Record<string, string | boolean | number | null | Raw>
-  where: Where
+  where: Where // This field is optional, but is kept required in type to warn users of delete without where
   returning?: string | Array<string>
-  onConflict?: string | ConflictTypes
+  orderBy?: string | Array<string> | Record<string, string | OrderTypes>
+  limit?: number
+  offset?: number
 }
 
-export interface Delete {
-  tableName: string
-  where: Where
-  returning?: string | Array<string>
+export type DeleteReturning = Omit<Delete, 'returning'> & {
+  returning: string | Array<string>
+}
+export type DeleteWithoutReturning = Omit<Delete, 'returning'>
+
+export type D1Meta = {
+  changed_db: boolean
+  changes: number
+  duration: number
+  last_row_id: string | number
+  rows_read: number
+  rows_written: number
+  served_by: string
+  size_after: number
 }
 
-export interface D1Result {
+export type D1Result = {
+  // These 4 fields are deprecated, and only kept here for retro compatibility, users should use the meta field bellow
   changes?: number
   duration: number
   last_row_id?: string | number
-  results?: Array<Record<string, string | boolean | number | null>>
   served_by: string
+
+  meta?: D1Meta
   success: boolean
 }
 
-export interface D1ResultOne {
-  changes?: number
-  duration: number
-  last_row_id?: string | number
-  results?: Record<string, string | boolean | number | null>
-  served_by: string
-  success: boolean
-}
-
-export interface PGResult {
+export type PGResult = {
   command: string
   lastRowId?: string | number
   rowCount: number
-  results?: Array<Record<string, string | boolean | number | null>>
 }
 
-export interface PGResultOne {
-  command: string
-  lastRowId?: string | number
-  rowCount: number
-  results?: Record<string, string | boolean | number | null>
-}
+export type ArrayResult<ResultWrapper, Result> = Merge<ResultWrapper, { results?: Array<Result> }>
+export type OneResult<ResultWrapper, Result> = Merge<ResultWrapper, { results?: Result }>
+
+export type CountResult<GenericResultWrapper> = OneResult<GenericResultWrapper, { total: number }>
+
+export type AsyncType<T> = Promise<T>
+export type SyncType<T> = T
+export type MaybeAsync<IsAsync extends boolean, T> = IsAsync extends true ? AsyncType<T> : SyncType<T>

@@ -1,9 +1,10 @@
+import { describe, expect, it, vi } from 'vitest'
 import { D1QB } from '../../src/databases/d1'
 
 describe('Batch Builder', () => {
-  test('batch execute with fetch one and fetch all', async () => {
+  it('batch execute with fetch one and fetch all', async () => {
     const db = {
-      batch: jest.fn((queries: string[]): Promise<any> => Promise.resolve([])),
+      batch: vi.fn((queries: string[]): Promise<any> => Promise.resolve([])),
       prepare: (q: string): string => q,
     }
     const qb = new D1QB(db)
@@ -18,6 +19,6 @@ describe('Batch Builder', () => {
       }),
     ])
 
-    expect(db.batch).toHaveBeenCalledWith(['SELECT * FROM tableA LIMIT 1', 'SELECT * FROM tableB'])
+    expect(db.batch).toHaveBeenCalledWith([`SELECT * FROM tableA LIMIT 1`, `SELECT * FROM tableB`])
   })
 })

@@ -1,60 +1,61 @@
-import { QueryBuilder } from '../Builder'
+import { QueryBuilder } from '../builder'
 import { FetchTypes } from '../enums'
+import { PGResult, QueryBuilderOptions } from '../interfaces'
+import { MigrationOptions, asyncMigrationsBuilder } from '../migrations'
 import { Query } from '../tools'
-import { PGResult, PGResultOne } from '../interfaces'
 
-export class PGQB extends QueryBuilder<PGResult, PGResultOne> {
-  private client: any
+export class PGQB extends QueryBuilder<PGResult> {
+  public db: any
+  _migrationsBuilder = asyncMigrationsBuilder
 
-  constructor(client: any) {
-    super()
+  constructor(db: any, options?: QueryBuilderOptions) {
+    super(options)
+    this.db = db
+  }
 
-    this.client = client
+  migrations(options: MigrationOptions) {
+    return new asyncMigrationsBuilder<PGResult>(options, this)
   }
 
   async connect() {
-    await this.client.connect()
+    await this.db.connect()
   }
 
   async close() {
-    await this.client.end()
+    await this.db.end()
   }
 
-  async execute(query: Query): Promise<PGResultOne | PGResult> {
-    const queryString = query.query.replaceAll('?', '$')
+  async execute(query: Query) {
+    return await this.loggerWrapper(query, this.options.logger, async () => {
+      const queryString = query.query.replaceAll('?', '$')
 
-    if (this._debugger) {
-      console.log({
-        'workers-qb': query,
-      })
-    }
+      let result
 
-    let result
+      if (query.arguments) {
+        result = await this.db.query({
+          values: query.arguments,
+          text: queryString,
+        })
+      } else {
+        result = await this.db.query({
+          text: queryString,
+        })
+      }
 
-    if (query.arguments) {
-      result = await this.client.query({
-        values: query.arguments,
-        text: queryString,
-      })
-    } else {
-      result = await this.client.query({
-        text: queryString,
-      })
-    }
+      if (query.fetchType === FetchTypes.ONE || query.fetchType === FetchTypes.ALL) {
+        return {
+          command: result.command,
+          lastRowId: result.oid,
+          rowCount: result.rowCount,
+          results: query.fetchType === FetchTypes.ONE ? result.rows[0] : result.rows,
+        }
+      }
 
-    if (query.fetchType === FetchTypes.ONE || query.fetchType === FetchTypes.ALL) {
       return {
         command: result.command,
         lastRowId: result.oid,
         rowCount: result.rowCount,
-        results: query.fetchType === FetchTypes.ONE && result.rows.length > 0 ? result.rows[0] : result.rows,
       }
-    }
-
-    return {
-      command: result.command,
-      lastRowId: result.oid,
-      rowCount: result.rowCount,
-    }
+    })
   }
 }

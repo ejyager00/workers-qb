@@ -1,3 +1,5 @@
+# Cloudflare D1
+
 ## Create a database
 
 ```bash
@@ -21,7 +23,7 @@ database_id = "<unique-ID-for-your-database>"
 import { D1QB } from 'workers-qb'
 
 export interface Env {
-  DB: any
+  DB: D1Database
 }
 
 export default {
@@ -55,7 +57,7 @@ run.
 import { D1QB } from 'workers-qb'
 
 export interface Env {
-  DB: any
+  DB: D1Database
 }
 
 export default {
@@ -65,11 +67,9 @@ export default {
     const fetched = await qb.batchExecute([
       qb.fetchAll({
         tableName: 'tableA',
-        fields: '*',
       }),
       qb.fetchAll({
         tableName: 'tableB',
-        fields: '*',
       }),
     ])
 

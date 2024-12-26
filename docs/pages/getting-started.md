@@ -1,26 +1,31 @@
-## Installation
 
 ```
 npm install workers-qb --save
 ```
 
-## Example Cloudflare D1 Usage
+## Example for Cloudflare Workers D1
 
 ```ts
 import { D1QB } from 'workers-qb'
 
 export interface Env {
-  DB: any
+  DB: D1Database
 }
 
 export default {
   async fetch(request: Request, env: Env, ctx: ExecutionContext): Promise<Response> {
     const qb = new D1QB(env.DB)
 
-    const fetched = await qb
-      .fetchOne({
+    type Employee = {
+      name: string
+      role: string
+      level: number
+    }
+
+    // Generated query: SELECT * FROM employees WHERE active = ?1
+    const employeeList = await qb
+      .fetchAll<Employee>({
         tableName: 'employees',
-        fields: 'count(*) as count',
         where: {
           conditions: 'active = ?1',
           params: [true],
@@ -28,14 +33,40 @@ export default {
       })
       .execute()
 
+    // Or in a modular approach
+    const employeeListModular = await qb.select<Employee>('employees').where('active = ?', true).execute()
+
+    // You get IDE type hints on each employee data, like:
+    // employeeList.results[0].name
+
     return Response.json({
-      activeEmployees: fetched.results?.count || 0,
+      activeEmployees: employeeList.results?.length || 0,
     })
   },
 }
 ```
 
-## Example Cloudflare Workers with PostgreSQL Usage
+## Example for Cloudflare Durable Objects
+
+```ts
+import { DOQB } from 'workers-qb'
+
+export class DOSRS extends DurableObject {
+  getEmployees() {
+    const qb = new DOQB(this.ctx.storage.sql)
+
+    const fetched = qb
+      .fetchAll({
+        tableName: 'employees',
+      })
+      .execute()
+
+    return fetched.results
+  }
+}
+```
+
+## Example for Cloudflare Workers with PostgreSQL
 
 Remember to close the connection using `ctx.waitUntil(qb.close());` or `await qb.close();` at the end of your request.
 You may also reuse this connection to execute multiple queries, or share it between multiple requests if you are using
@@ -62,6 +93,7 @@ export default {
     const qb = new PGQB(new Client(env.DB_URL))
     await qb.connect()
 
+    // Generated query: SELECT count(*) as count FROM employees WHERE active = ?1 LIMIT 1
     const fetched = await qb
       .fetchOne({
         tableName: 'employees',

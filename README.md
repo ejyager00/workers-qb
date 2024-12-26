@@ -10,22 +10,24 @@ traditional ORM.
 `workers-qb` is not intended to provide ORM-like functionality, rather to make it easier to interact with the database
 from code for direct SQL access using convenient wrapper methods.
 
-Currently, 2 databases are supported:
+Currently, 3 databases are supported:
 
-- [Cloudflare D1](https://developers.cloudflare.com/d1/)
-- [PostgreSQL (using node-postgres)](https://developers.cloudflare.com/workers/databases/connect-to-postgres/)
+- [Cloudflare D1](https://workers-qb.massadas.com/databases/cloudflare-d1/)
+- [Cloudflare Durable Objects](https://workers-qb.massadas.com/databases/cloudflare-do/)
+- [PostgreSQL (using node-postgres)](https://workers-qb.massadas.com/databases/postgresql/)
+- [Bring your own Database](https://workers-qb.massadas.com/databases/bring-your-own-database/)
 
 ## Features
 
-- [x] Zero dependencies.
+- [x] Zero dependencies
 - [x] Fully typed/TypeScript support
-- [x] SQL Type checking with compatible IDE's
-- [x] Create/drop tables
+- [x] [Migrations](https://workers-qb.massadas.com/migrations/)
+- [x] [Type Checks for data read](https://workers-qb.massadas.com/type-check/)
+- [x] [Create/drop tables](https://workers-qb.massadas.com/basic-queries/#dropping-and-creating-tables)
 - [x] [Insert/Bulk Inserts/Update/Select/Delete/Join queries](https://workers-qb.massadas.com/basic-queries/)
+- [x] [Modular selects](https://workers-qb.massadas.com/modular-selects/) (qb.select(...).where(...).where(...).one())
 - [x] [On Conflict for Inserts and Updates](https://workers-qb.massadas.com/advanced-queries/onConflict/)
-- [x] [Support for Cloudflare Workers D1](https://workers-qb.massadas.com/databases/cloudflare-d1/)
-- [x] [Support for Cloudflare Workers PostgreSQL (using node-postgres)](https://workers-qb.massadas.com/databases/postgresql/)
-- [ ] Named parameters (waiting for full support in D1)
+- [x] [Upsert](https://workers-qb.massadas.com/advanced-queries/upsert/)
 
 ## Installation
 
@@ -39,17 +41,23 @@ npm install workers-qb --save
 import { D1QB } from 'workers-qb'
 
 export interface Env {
-  DB: any
+  DB: D1Database
 }
 
 export default {
   async fetch(request: Request, env: Env, ctx: ExecutionContext): Promise<Response> {
     const qb = new D1QB(env.DB)
 
-    const fetched = await qb
-      .fetchOne({
+    type Employee = {
+      name: string
+      role: string
+      level: number
+    }
+
+    // Generated query: SELECT * FROM employees WHERE active = ?1
+    const employeeList = await qb
+      .fetchAll<Employee>({
         tableName: 'employees',
-        fields: 'count(*) as count',
         where: {
           conditions: 'active = ?1',
           params: [true],
@@ -57,10 +65,36 @@ export default {
       })
       .execute()
 
+    // Or in a modular approach
+    const employeeListModular = await qb.select<Employee>('employees').where('active = ?', true).execute()
+
+    // You get IDE type hints on each employee data, like:
+    // employeeList.results[0].name
+
     return Response.json({
-      activeEmployees: fetched.results?.count || 0,
+      activeEmployees: employeeList.results?.length || 0,
     })
   },
+}
+```
+
+## Example for Cloudflare Durable Objects
+
+```ts
+import { DOQB } from 'workers-qb'
+
+export class DOSRS extends DurableObject {
+  getEmployees() {
+    const qb = new DOQB(this.ctx.storage.sql)
+
+    const fetched = qb
+      .fetchAll({
+        tableName: 'employees',
+      })
+      .execute()
+
+    return fetched.results
+  }
 }
 ```
 
@@ -91,6 +125,7 @@ export default {
     const qb = new PGQB(new Client(env.DB_URL))
     await qb.connect()
 
+    // Generated query: SELECT count(*) as count FROM employees WHERE active = ?1 LIMIT 1
     const fetched = await qb
       .fetchOne({
         tableName: 'employees',
